@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultUserAgent = "github.com/PaytonWebber/aoc-discord-bot"
+	defaultUserAgent = "github.com/Ponte348/aoc-discord-bot"
 	requestTimeout   = 30 * time.Second
 )
 
