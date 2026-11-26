@@ -1,11 +1,16 @@
 package leaderboard
 
 import (
+	"log"
+	"sort"
+	"strconv"
+	"time"
+
 	"github.com/PaytonWebber/aoc-discord-bot/internal/aoc"
 	"github.com/PaytonWebber/aoc-discord-bot/internal/config"
-	"log"
-	"time"
 )
+
+const PollInterval = 15 * time.Minute
 
 type AOCClient interface {
 	GetLeaderboard(leaderboardID string) (*aoc.Leaderboard, error)
@@ -18,6 +23,13 @@ type Tracker struct {
 	Client              AOCClient
 	Config              *config.Config
 	LastUpdate          time.Time
+}
+
+type StarEvent struct {
+	Member aoc.Member
+	Day    int
+	Part   int
+	At     time.Time
 }
 
 func NewTracker(cfg *config.Config, StoredLeaderboard *aoc.Leaderboard, client AOCClient) *Tracker {
@@ -37,7 +49,12 @@ func (t *Tracker) GetLeaderboard() (*aoc.Leaderboard, error) {
 	return leaderboard, nil
 }
 
+func (t *Tracker) Due(now time.Time) bool {
+	return now.Sub(t.LastUpdate) >= PollInterval
+}
+
 func (t *Tracker) UpdateLeaderboard() error {
+	t.LastUpdate = time.Now()
 	leaderboard, err := t.GetLeaderboard()
 	if err != nil {
 		return err
@@ -49,30 +66,63 @@ func (t *Tracker) UpdateLeaderboard() error {
 	return nil
 }
 
-func (t *Tracker) CheckForNewStars() ([]string, error) {
-	var newStars []string
+func (t *Tracker) CheckForNewStars() ([]StarEvent, error) {
+	if t.PreviousLeaderboard == nil || t.CurrentLeaderboard == nil {
+		return nil, nil
+	}
 
-	// TODO: Get the new star data from the current leaderboard
+	var events []StarEvent
 	for memberID, member := range t.CurrentLeaderboard.Members {
 		previousMember, ok := t.PreviousLeaderboard.Members[memberID]
 		if !ok {
 			continue
-		} else if member.Stars > previousMember.Stars {
-			newStars = append(newStars, member.Name)
+		}
+		for dayKey, levels := range member.CompletionDayLevels {
+			day, err := strconv.Atoi(dayKey)
+			if err != nil {
+				continue
+			}
+			previous := previousMember.CompletionDayLevels[dayKey]
+			if levels.Level1 != nil && previous.Level1 == nil {
+				events = append(events, newStarEvent(member, day, 1, levels.Level1))
+			}
+			if levels.Level2 != nil && previous.Level2 == nil {
+				events = append(events, newStarEvent(member, day, 2, levels.Level2))
+			}
 		}
 	}
 
-	return newStars, nil
+	sort.Slice(events, func(i, j int) bool {
+		a, b := events[i], events[j]
+		if !a.At.Equal(b.At) {
+			return a.At.Before(b.At)
+		}
+		if a.Member.ID != b.Member.ID {
+			return a.Member.ID < b.Member.ID
+		}
+		if a.Day != b.Day {
+			return a.Day < b.Day
+		}
+		return a.Part < b.Part
+	})
+
+	return events, nil
+}
+
+func newStarEvent(member aoc.Member, day, part int, star *aoc.StarDetail) StarEvent {
+	return StarEvent{Member: member, Day: day, Part: part, At: time.Unix(int64(star.GetStarTs), 0)}
 }
 
 func (t *Tracker) CheckForNewMembers() ([]string, error) {
-	var newMembers []string
+	if t.PreviousLeaderboard == nil || t.CurrentLeaderboard == nil {
+		return nil, nil
+	}
 
-	for memberID, member := range t.CurrentLeaderboard.Members {
-		_, ok := t.PreviousLeaderboard.Members[memberID]
-		if !ok {
-			log.Printf("New member: %s", member.Name)
-			newMembers = append(newMembers, member.Name)
+	var newMembers []string
+	for _, member := range SortedMembers(t.CurrentLeaderboard) {
+		if _, ok := t.PreviousLeaderboard.Members[strconv.Itoa(member.ID)]; !ok {
+			log.Printf("New member: %s", member.DisplayName())
+			newMembers = append(newMembers, member.DisplayName())
 		}
 	}
 

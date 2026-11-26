@@ -175,7 +175,7 @@ func TestCheckForNewStars(t *testing.T) {
 				Name:                "User1",
 				LocalScore:          200,
 				Stars:               2,
-				CompletionDayLevels: make(map[string]aoc.CompletionDayLevel),
+				CompletionDayLevels: days(1),
 			},
 			"2": {
 				ID:                  2,
@@ -195,8 +195,8 @@ func TestCheckForNewStars(t *testing.T) {
 				ID:                  1,
 				Name:                "User1",
 				LocalScore:          200,
-				Stars:               3, // Increased stars
-				CompletionDayLevels: make(map[string]aoc.CompletionDayLevel),
+				Stars:               3,
+				CompletionDayLevels: days(1, -2),
 			},
 			"2": {
 				ID:                  2,
@@ -236,7 +236,9 @@ func TestCheckForNewStars(t *testing.T) {
 
 	assert.NoError(t, err, "Expected no error")
 	assert.Len(t, newStars, 1, "Expected one new star")
-	assert.Contains(t, newStars, "User1", "Expected User1 to have new stars")
+	assert.Equal(t, "User1", newStars[0].Member.Name, "Expected User1 to have new stars")
+	assert.Equal(t, 2, newStars[0].Day, "Expected day 2")
+	assert.Equal(t, 1, newStars[0].Part, "Expected part 1")
 }
 
 func TestCheckForNewStars_NoNewStars(t *testing.T) {
@@ -409,7 +411,7 @@ func TestCheckForNewStars_PartialPreviousLeaderboard(t *testing.T) {
 				Name:                "User1",
 				LocalScore:          200,
 				Stars:               2,
-				CompletionDayLevels: make(map[string]aoc.CompletionDayLevel),
+				CompletionDayLevels: days(1),
 			},
 			// User2 is missing in previous leaderboard
 		},
@@ -423,8 +425,8 @@ func TestCheckForNewStars_PartialPreviousLeaderboard(t *testing.T) {
 				ID:                  1,
 				Name:                "User1",
 				LocalScore:          200,
-				Stars:               3, // Increased stars
-				CompletionDayLevels: make(map[string]aoc.CompletionDayLevel),
+				Stars:               3,
+				CompletionDayLevels: days(1, -2),
 			},
 			"2": {
 				ID:                  2,
@@ -457,7 +459,9 @@ func TestCheckForNewStars_PartialPreviousLeaderboard(t *testing.T) {
 
 	assert.NoError(t, err, "Expected no error")
 	assert.Len(t, newStars, 1, "Expected one new star")
-	assert.Contains(t, newStars, "User1", "Expected User1 to have new stars")
+	assert.Equal(t, "User1", newStars[0].Member.Name, "Expected User1 to have new stars")
+	assert.Equal(t, 2, newStars[0].Day, "Expected day 2")
+	assert.Equal(t, 1, newStars[0].Part, "Expected part 1")
 }
 
 func TestCheckForNewMembers_PartialPreviousLeaderboard(t *testing.T) {

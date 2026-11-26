@@ -7,39 +7,54 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+func SortedMembers(leaderboard *aoc.Leaderboard) []aoc.Member {
+	members := make([]aoc.Member, 0, len(leaderboard.Members))
+	for _, member := range leaderboard.Members {
+		members = append(members, member)
+	}
+
+	sort.Slice(members, func(i, j int) bool {
+		a, b := members[i], members[j]
+		if a.LocalScore != b.LocalScore {
+			return a.LocalScore > b.LocalScore
+		}
+		if a.Stars != b.Stars {
+			return a.Stars > b.Stars
+		}
+		if a.LastStarTs != b.LastStarTs {
+			return a.LastStarTs < b.LastStarTs
+		}
+		return a.ID < b.ID
+	})
+
+	return members
+}
 
 func FormatLeaderboard(leaderboard *aoc.Leaderboard) *discordgo.MessageEmbed {
 	if leaderboard == nil || len(leaderboard.Members) == 0 {
 		return nil
 	}
 
-	// Convert map to a slice for sorting
-	members := make([]aoc.Member, 0, len(leaderboard.Members))
-	for _, member := range leaderboard.Members {
-		members = append(members, member)
-	}
-
-	// Sort by local score
-	sort.Slice(members, func(i, j int) bool {
-		return members[i].LocalScore > members[j].LocalScore
-	})
-
 	var sb strings.Builder
 
 	var prevScore int
 	var rank int
-	for i, member := range members {
+	for i, member := range SortedMembers(leaderboard) {
 		// Handle ties and first place
 		if i == 0 || member.LocalScore < prevScore {
 			rank = i + 1
 			prevScore = member.LocalScore
 		}
-		line := fmt.Sprintf("%d. %s - %d points (%d stars)\n", rank, member.Name, member.LocalScore, member.Stars)
+		line := fmt.Sprintf("%d. %s - %d points (%d stars)\n", rank, member.DisplayName(), member.LocalScore, member.Stars)
 		sb.WriteString(line)
 	}
 
@@ -58,27 +73,20 @@ func FormatStars(leaderboard *aoc.Leaderboard) *discordgo.MessageEmbed {
 		return nil
 	}
 
-	// Convert map to a slice for sorting
-	members := make([]aoc.Member, 0, len(leaderboard.Members))
-	for _, member := range leaderboard.Members {
-		members = append(members, member)
-	}
-
-	// Sort by local score
-	sort.Slice(members, func(i, j int) bool {
-		return members[i].LocalScore > members[j].LocalScore
-	})
+	members := SortedMembers(leaderboard)
 
 	var sb strings.Builder
 
 	maxDays := 0
 	longestNameLength := 0
 	for _, member := range members {
-		if len(member.CompletionDayLevels) > maxDays {
-			maxDays = len(member.CompletionDayLevels)
+		for dayKey := range member.CompletionDayLevels {
+			if day, err := strconv.Atoi(dayKey); err == nil && day > maxDays {
+				maxDays = day
+			}
 		}
-		if len(member.Name) > longestNameLength {
-			longestNameLength = len(member.Name)
+		if len(member.DisplayName()) > longestNameLength {
+			longestNameLength = len(member.DisplayName())
 		}
 	}
 
@@ -111,7 +119,7 @@ func FormatStars(leaderboard *aoc.Leaderboard) *discordgo.MessageEmbed {
 				sb.WriteString("   ")
 			}
 		}
-		sb.WriteString(fmt.Sprintf(" %-*s", longestNameLength, member.Name))
+		sb.WriteString(fmt.Sprintf(" %-*s", longestNameLength, member.DisplayName()))
 	}
 
 	embed := &discordgo.MessageEmbed{
@@ -123,41 +131,49 @@ func FormatStars(leaderboard *aoc.Leaderboard) *discordgo.MessageEmbed {
 	return embed
 }
 
-func StoreLeaderboard(leaderboard *aoc.Leaderboard) error {
-	file, err := os.Create("leaderboard.json")
+func StoreLeaderboard(leaderboard *aoc.Leaderboard, path string) error {
 	log.Println("Storing leaderboard")
-	if err != nil {
-		return fmt.Errorf("error creating leaderboard file: %w", err)
-	}
-
-	// change leadboard to json
 	leaderboardJson, err := json.Marshal(leaderboard)
 	if err != nil {
 		return fmt.Errorf("error marshalling leaderboard: %w", err)
 	}
 
-	// write leaderboard to file
-	_, err = file.Write(leaderboardJson)
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
 	if err != nil {
+		return fmt.Errorf("error creating leaderboard file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.Write(leaderboardJson); err != nil {
+		tmp.Close()
 		return fmt.Errorf("error writing leaderboard to file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("error closing leaderboard file: %w", err)
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("error replacing leaderboard file: %w", err)
 	}
 
 	return nil
 }
 
-func GetLeaderboardFromFile(file *os.File) (*aoc.Leaderboard, error) {
-	leaderboard, err := os.ReadFile("leaderboard.json")
+func LoadLeaderboard(path string) (*aoc.Leaderboard, time.Time, error) {
 	log.Println("Getting leaderboard from file")
+	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("error reading leaderboard file: %w", err)
+		return nil, time.Time{}, fmt.Errorf("error reading leaderboard file: %w", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("error reading leaderboard file: %w", err)
 	}
 
 	var lb aoc.Leaderboard
-
-	err = json.Unmarshal(leaderboard, &lb)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling leaderboard: %w", err)
+	if err := json.Unmarshal(data, &lb); err != nil {
+		return nil, time.Time{}, fmt.Errorf("error unmarshalling leaderboard: %w", err)
 	}
 
-	return &lb, nil
+	return &lb, info.ModTime(), nil
 }

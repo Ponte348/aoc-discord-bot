@@ -115,3 +115,12 @@ func TestMemberUnmarshalWithMissingFields(t *testing.T) {
 		t.Errorf("Expected CompletionDayLevels to be nil, got %v", member.CompletionDayLevels)
 	}
 }
+
+func TestMemberDisplayName(t *testing.T) {
+	if got := (Member{ID: 7, Name: "Alice"}).DisplayName(); got != "Alice" {
+		t.Errorf("Expected Alice, got %q", got)
+	}
+	if got := (Member{ID: 7}).DisplayName(); got != "(anonymous user #7)" {
+		t.Errorf("Expected anonymous name, got %q", got)
+	}
+}

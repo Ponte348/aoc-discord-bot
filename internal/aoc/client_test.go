@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -120,7 +121,7 @@ func TestGetLeaderboardInvalidSession(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected an error due to unauthorized access, but got none")
 	}
-	expectedError := "error unmarshalling response body"
+	expectedError := "unexpected status 401"
 	if err.Error()[:len(expectedError)] != expectedError {
 		t.Errorf("Expected error starting with '%s', got '%v'", expectedError, err)
 	}
@@ -171,4 +172,55 @@ func (t *urlRewritingTransport) RoundTrip(req *http.Request) (*http.Response, er
 		req.URL.Host = t.mockBase[len("http://"):]
 	}
 	return t.original.RoundTrip(req)
+}
+
+func TestGetLeaderboardDoesNotFollowRedirect(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			fmt.Fprintln(w, "<html>login page</html>")
+			return
+		}
+		http.Redirect(w, r, "/login", http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	client := NewClient("expired-session-cookie", 2024)
+	client.HTTPClient.Transport = rewriteURLTransport("https://adventofcode.com", mockServer.URL)
+
+	_, err := client.GetLeaderboard("test-leaderboard")
+	if err == nil || !strings.Contains(err.Error(), "unexpected status 302") {
+		t.Fatalf("Expected unexpected status 302 error, got %v", err)
+	}
+}
+
+func TestGetLeaderboardSendsUserAgent(t *testing.T) {
+	var got string
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("User-Agent")
+		fmt.Fprintln(w, mockLeaderboardJSON)
+	}))
+	defer mockServer.Close()
+
+	client := NewClient("test-session-cookie", 2024)
+	client.UserAgent = UserAgent("someone@example.com")
+	client.HTTPClient.Transport = rewriteURLTransport("https://adventofcode.com", mockServer.URL)
+
+	if _, err := client.GetLeaderboard("test-leaderboard"); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if got != defaultUserAgent+" by someone@example.com" {
+		t.Errorf("Unexpected User-Agent %q", got)
+	}
+}
+
+func TestUserAgentWithoutContact(t *testing.T) {
+	if UserAgent("") != defaultUserAgent {
+		t.Errorf("Expected default user agent, got %q", UserAgent(""))
+	}
+}
+
+func TestNewClientHasTimeout(t *testing.T) {
+	if NewClient("c", 2024).HTTPClient.Timeout != requestTimeout {
+		t.Errorf("Expected HTTP client timeout of %v", requestTimeout)
+	}
 }
