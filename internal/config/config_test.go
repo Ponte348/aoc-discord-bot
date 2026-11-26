@@ -197,3 +197,13 @@ func TestValidate(t *testing.T) {
 		assert.Contains(t, err.Error(), "AOC_YEAR", "Error should mention AOC_YEAR")
 	})
 }
+
+func TestNewConfigAcceptsFirstEventYear(t *testing.T) {
+	t.Setenv("AOC_YEAR", "2015")
+	assert.Equal(t, 2015, NewConfig().AOCYear, "AOCYear 2015 should be accepted")
+}
+
+func TestNewConfigContact(t *testing.T) {
+	t.Setenv("CONTACT", "someone@example.com")
+	assert.Equal(t, "someone@example.com", NewConfig().Contact, "Contact should match")
+}

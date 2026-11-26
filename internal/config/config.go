@@ -13,13 +13,14 @@ type Config struct {
 	DiscordToken  string
 	ChannelID     string
 	AOCYear       int
+	Contact       string
 }
 
 func NewConfig() *Config {
 	// Default to current year if AOC_YEAR is not set
 	year := time.Now().Year()
 	if yearStr := os.Getenv("AOC_YEAR"); yearStr != "" {
-		if parsedYear, err := strconv.Atoi(yearStr); err == nil && parsedYear > 2015 {
+		if parsedYear, err := strconv.Atoi(yearStr); err == nil && parsedYear >= 2015 {
 			year = parsedYear
 		}
 	}
@@ -30,6 +31,7 @@ func NewConfig() *Config {
 		DiscordToken:  os.Getenv("DISCORD_TOKEN"),
 		ChannelID:     os.Getenv("CHANNEL_ID"),
 		AOCYear:       year,
+		Contact:       os.Getenv("CONTACT"),
 	}
 }
 

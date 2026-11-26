@@ -1,5 +1,7 @@
 package aoc
 
+import "fmt"
+
 type StarDetail struct {
 	GetStarTs int `json:"get_star_ts"`
 	StarIndex int `json:"star_index"`
@@ -18,6 +20,13 @@ type Member struct {
 	Name                string                        `json:"name"`
 	CompletionDayLevels map[string]CompletionDayLevel `json:"completion_day_level"`
 	Stars               int                           `json:"stars"`
+}
+
+func (m Member) DisplayName() string {
+	if m.Name == "" {
+		return fmt.Sprintf("(anonymous user #%d)", m.ID)
+	}
+	return m.Name
 }
 
 // Leaderboard represents the entire JSON structure
