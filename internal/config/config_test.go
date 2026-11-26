@@ -111,6 +111,10 @@ func TestConfigStruct(t *testing.T) {
 			DiscordToken:  "config-discord-token",
 			ChannelID:     "config-channel-id",
 			AOCYear:       2024,
+			AOCDays:       12,
+			TimeZone:      "Europe/Lisbon",
+			Location:      mustLoadLocation(t, "Europe/Lisbon"),
+			DataDir:       ".",
 		}
 
 		assert.Equal(t, expected, cfg, "Config struct should match expected values")
@@ -125,6 +129,8 @@ func TestValidate(t *testing.T) {
 			DiscordToken:  "test-token",
 			ChannelID:     "test-channel",
 			AOCYear:       2024,
+			AOCDays:       12,
+			Location:      time.UTC,
 		}
 
 		err := cfg.Validate()
@@ -137,6 +143,8 @@ func TestValidate(t *testing.T) {
 			DiscordToken:  "test-token",
 			ChannelID:     "test-channel",
 			AOCYear:       2024,
+			AOCDays:       12,
+			Location:      time.UTC,
 		}
 
 		err := cfg.Validate()
@@ -150,6 +158,8 @@ func TestValidate(t *testing.T) {
 			DiscordToken:  "test-token",
 			ChannelID:     "test-channel",
 			AOCYear:       2024,
+			AOCDays:       12,
+			Location:      time.UTC,
 		}
 
 		err := cfg.Validate()
@@ -163,6 +173,8 @@ func TestValidate(t *testing.T) {
 			SessionCookie: "test-cookie",
 			ChannelID:     "test-channel",
 			AOCYear:       2024,
+			AOCDays:       12,
+			Location:      time.UTC,
 		}
 
 		err := cfg.Validate()
@@ -176,6 +188,8 @@ func TestValidate(t *testing.T) {
 			SessionCookie: "test-cookie",
 			DiscordToken:  "test-token",
 			AOCYear:       2024,
+			AOCDays:       12,
+			Location:      time.UTC,
 		}
 
 		err := cfg.Validate()
@@ -190,6 +204,8 @@ func TestValidate(t *testing.T) {
 			DiscordToken:  "test-token",
 			ChannelID:     "test-channel",
 			AOCYear:       2014,
+			AOCDays:       12,
+			Location:      time.UTC,
 		}
 
 		err := cfg.Validate()
@@ -206,4 +222,44 @@ func TestNewConfigAcceptsFirstEventYear(t *testing.T) {
 func TestNewConfigContact(t *testing.T) {
 	t.Setenv("CONTACT", "someone@example.com")
 	assert.Equal(t, "someone@example.com", NewConfig().Contact, "Contact should match")
+}
+
+func mustLoadLocation(t *testing.T, name string) *time.Location {
+	t.Helper()
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return location
+}
+
+func TestNewConfigEventSettings(t *testing.T) {
+	t.Setenv("AOC_DAYS", "25")
+	t.Setenv("PING_ROLE_ID", "role-1")
+	t.Setenv("TIMEZONE", "America/New_York")
+	t.Setenv("DATA_DIR", "/data")
+
+	cfg := NewConfig()
+
+	assert.Equal(t, 25, cfg.AOCDays)
+	assert.Equal(t, "role-1", cfg.PingRoleID)
+	assert.Equal(t, "America/New_York", cfg.Location.String())
+	assert.Equal(t, "/data/leaderboard.json", cfg.LeaderboardPath())
+	assert.Equal(t, "/data/state.json", cfg.StatePath())
+}
+
+func TestValidateEventSettings(t *testing.T) {
+	base := func() *Config {
+		return &Config{LeaderboardID: "l", SessionCookie: "s", DiscordToken: "d", ChannelID: "c", AOCYear: 2026, AOCDays: 12, Location: time.UTC}
+	}
+	for _, days := range []int{0, 26} {
+		cfg := base()
+		cfg.AOCDays = days
+		assert.ErrorContains(t, cfg.Validate(), "AOC_DAYS")
+	}
+
+	t.Setenv("TIMEZONE", "Not/AZone")
+	cfg := NewConfig()
+	cfg.LeaderboardID, cfg.SessionCookie, cfg.DiscordToken, cfg.ChannelID = "l", "s", "d", "c"
+	assert.ErrorContains(t, cfg.Validate(), "TIMEZONE")
 }

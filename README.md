@@ -1,103 +1,86 @@
-<a name="readme-top"></a>
+# AoC Discord Bot
 
-<h3 align="center">AocDiscordBot</h3>
+A Discord bot for a private [Advent of Code](https://adventofcode.com) leaderboard.
 
-  <p align="center">
-  A Discord bot designed to monitor a private Advent of Code (AoC) leaderboard. It automatically fetches and checks for updates, then notifies members when someone on the leaderboard earns a new star, or when a new member has joined.
-  </p>
-</div>
+Forked from [PaytonWebber/aoc-discord-bot](https://github.com/PaytonWebber/aoc-discord-bot) (MIT).
 
+## Features
 
+- **Puzzle announcements**: posts a message (optionally pinging a role) when each day's puzzle unlocks, at midnight US Eastern time (05:00 UTC).
+- **Star notifications**: one message per completed part, e.g. `🌟 Alice completed Day 3 – Part 2 at 06:12 on 3 Dec`, in your time zone.
+- **Live leaderboard**: a single pinned message that is edited after every update, instead of new messages filling the channel.
+- **New member notifications** when someone joins the private leaderboard.
+- Commands: `!leaderboard`, `!stars`, `!update`, `!help`.
 
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li><a href="#about-the-project">About The Project</a></li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-  </ol>
-</details>
+The bot polls the leaderboard at most once every **15 minutes**, as Advent of Code asks, including across restarts. Star messages show the real solve time from the API, so a message can arrive up to 15 minutes after the solve.
 
+## Setup
 
+### 1. Discord application
 
-<!-- ABOUT THE PROJECT -->
-## About The Project
+1. Create an application and a bot in the [Developer Portal](https://discord.com/developers/applications).
+2. Under **Bot**, enable **MESSAGE CONTENT INTENT**. Without it the bot refuses to start.
 
-The AocDiscordBot is a specialized Discord bot designed to enhance the experience of participating in the Advent of Code (AoC) challenges among a private group. Advent of Code is an annual series of programming puzzles that span a variety of skill sets and challenge types. The bot is designed for small, personal servers and can easily be self-hosted. I am currently running this bot on my Raspberry Pi 4.
+   ![image](images/bot_message_content.png)
 
-Key Features:
+3. Invite the bot to your server with these permissions in the announcement channel: **View Channel**, **Send Messages**, **Embed Links**, **Read Message History** and **Pin Messages**.
+4. Enable Developer Mode in Discord (User Settings → Advanced), then right-click the channel → *Copy Channel ID*. For role pings, right-click the role → *Copy Role ID*.
 
-* Automated Updates: The bot automatically fetches the latest stars and scores from the Advent of Code leaderboard.
+### 2. Advent of Code
 
-* Real-Time Notifications: Members are notified in Discord when someone on the leaderboard earns a new star, keeping everyone up-to-date and engaged.
+- **Leaderboard ID**: the number in your private leaderboard's URL, `https://adventofcode.com/<year>/leaderboard/private/view/<ID>`. The account whose cookie you use must be a member.
+- **Session cookie**: log in to adventofcode.com, open the browser dev tools → Storage/Application → Cookies, and copy the value of `session`.
+  - Treat it like a password.
+  - It expires after a while. If the bot logs `unexpected status ... is SESSION_COOKIE valid`, copy a fresh one.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+### 3. Configuration
 
+Copy `.env.example` to `.env` and fill it in.
 
-<!-- GETTING STARTED -->
-## Getting Started
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `SESSION_COOKIE` | yes | | AoC `session` cookie |
+| `LEADERBOARD_ID` | yes | | Private leaderboard ID |
+| `DISCORD_TOKEN` | yes | | Bot token |
+| `CHANNEL_ID` | yes | | Channel the bot posts in and listens to |
+| `CONTACT` | recommended | | Your contact (e.g. GitHub profile URL), sent in the User-Agent as AoC asks |
+| `AOC_YEAR` | no | current year | Event year (2015 or later) |
+| `AOC_DAYS` | no | `12` | Number of puzzles (12 since 2025, 25 before) |
+| `PING_ROLE_ID` | no | | Role mentioned in puzzle announcements |
+| `TIMEZONE` | no | `Europe/Lisbon` | IANA time zone used for times in messages |
+| `DATA_DIR` | no | `.` (`/data` in Docker) | Where `leaderboard.json` and `state.json` are stored |
 
-To add this bot to your own server, follow these steps.
+## Running
 
-### Prerequisites
+### Docker (recommended)
 
-You need to create your own Discord app through their [Devloper Portal](https://discord.com/developers/docs/intro)
+```sh
+docker compose up -d --build
+docker compose logs -f
+```
 
-Make sure to enable **MESSAGE CONTENT INTENT** for the bot:
+Data is kept in the `bot-data` volume, so restarts never re-announce stars or puzzles.
 
-![image](images/bot_message_content.png)
+### Go
 
-### Installation
+Requires Go 1.26 or newer.
 
-1. Clone the repo
+```sh
+make
+./bot
+```
 
-   ```sh
-   git clone https://github.com/PaytonWebber/AocDiscordBot.git
-   ```
+### Hosting
 
-2. Create a .env file at the root of the repo
+The bot needs to run continuously for the whole event. Options:
 
-   ```sh
-   touch .env
-   ```
+| Option | Pros | Cons |
+|---|---|---|
+| Oracle Cloud Always Free VM | Free and always on | Account setup takes a while |
+| Raspberry Pi / home server | Free, under your control | Down if your machine or internet is |
+| Small paid VPS | Simple and reliable | A few euros per month |
 
-3. Enter the following information in the .env file you just created
-
-   ```ini
-   SESSION_COOKIE="<YOUR COOKIE>"
-   LEADERBOARD_ID="<YOUR LEADERBOARD ID>"
-   DISCORD_TOKEN="<YOUR BOT's TOKEN>"
-   CHANNEL_ID="<THE CHANNEL YOU WANT THE BOT TO MONITOR>"
-   AOC_YEAR="<OPTIONAL: YEAR TO TRACK (defaults to current year)>"
-   ```
-
-   **Note:** The `AOC_YEAR` variable is optional and defaults to the current year. You can set it to any year from 2015 onwards to track a specific Advent of Code event.
-
-4. Build the project
-
-   ```sh
-   make
-   ```
-
-5. Start the bot
-
-   ```sh
-   ./bot
-   ```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-<!-- USAGE EXAMPLES -->
 ## Usage
-
-The bot is mostly autonomous, but can be interacted with using the following commands:
 
 ![image](images/help_command.png)
 
@@ -105,4 +88,9 @@ The bot is mostly autonomous, but can be interacted with using the following com
 
 ![image](images/stars_command.png)
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+## Development
+
+```sh
+go test -race ./...
+go vet ./...
+```

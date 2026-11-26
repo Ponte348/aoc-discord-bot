@@ -2,12 +2,12 @@ package leaderboard
 
 import (
 	"github.com/PaytonWebber/aoc-discord-bot/internal/aoc"
+	"github.com/PaytonWebber/aoc-discord-bot/internal/fileutil"
 
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -137,25 +137,7 @@ func StoreLeaderboard(leaderboard *aoc.Leaderboard, path string) error {
 	if err != nil {
 		return fmt.Errorf("error marshalling leaderboard: %w", err)
 	}
-
-	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
-	if err != nil {
-		return fmt.Errorf("error creating leaderboard file: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-
-	if _, err := tmp.Write(leaderboardJson); err != nil {
-		tmp.Close()
-		return fmt.Errorf("error writing leaderboard to file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("error closing leaderboard file: %w", err)
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		return fmt.Errorf("error replacing leaderboard file: %w", err)
-	}
-
-	return nil
+	return fileutil.WriteFileAtomic(path, leaderboardJson)
 }
 
 func LoadLeaderboard(path string) (*aoc.Leaderboard, time.Time, error) {
